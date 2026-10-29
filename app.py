@@ -183,23 +183,35 @@ st.download_button(
     mime="text/csv"
 )
 
+
 # --------------------------------------------------
-# 5. LOAD NASA B0005 MEASUREMENTS
+# 5. LOAD SELECTED NASA BATTERY MEASUREMENTS
 # --------------------------------------------------
 
 st.divider()
 st.header("NASA Real Battery Data")
 
-nasa_csv_path = (
-    PROJECT_DIR
-    / "data"
-    / "processed"
-    / "NASA_B0005_capacity.csv"
+processed_dir = PROJECT_DIR / "data" / "processed"
+
+battery_options = {
+    "B0005": processed_dir / "NASA_B0005_capacity.csv",
+    "B0006": processed_dir / "NASA_B0006_capacity.csv",
+    "B0007": processed_dir / "NASA_B0007_capacity.csv",
+    "B0018": processed_dir / "NASA_B0018_capacity.csv",
+}
+
+selected_battery = st.selectbox(
+    "Select NASA battery",
+    options=list(battery_options.keys()),
+    index=0
 )
+
+nasa_csv_path = battery_options[selected_battery]
 
 if not nasa_csv_path.exists():
     st.error(
-        "NASA CSV not found. Run process_nasa_data.py first."
+        f"Processed data for {selected_battery} not found. "
+        "Run process_nasa_data.py first."
     )
     st.stop()
 
@@ -212,8 +224,7 @@ required_columns = {
 
 if not required_columns.issubset(nasa_df.columns):
     st.error(
-        "NASA CSV is missing required columns: "
-        "Discharge_Cycle and Capacity_Ah."
+        "NASA CSV must contain Discharge_Cycle and Capacity_Ah columns."
     )
     st.stop()
 
@@ -231,41 +242,28 @@ if nasa_df.empty:
     st.error("No valid NASA capacity measurements were found.")
     st.stop()
 
-# Calculate SOH relative to the first valid measured capacity.
 nasa_initial_capacity = float(nasa_df["Capacity_Ah"].iloc[0])
 
 nasa_df["SOH_Percent"] = (
-    nasa_df["Capacity_Ah"]
-    / nasa_initial_capacity
-    * 100
+    nasa_df["Capacity_Ah"] / nasa_initial_capacity * 100
 )
 
 nasa_final_capacity = float(nasa_df["Capacity_Ah"].iloc[-1])
 nasa_final_soh = float(nasa_df["SOH_Percent"].iloc[-1])
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
-col1.metric(
-    "NASA Measurements",
-    f"{len(nasa_df)}"
-)
-
-col2.metric(
-    "First Measured Capacity",
-    f"{nasa_initial_capacity:.4f} Ah"
-)
-
-col3.metric(
-    "Last Measured SOH",
-    f"{nasa_final_soh:.2f}%"
-)
+col1.metric("Discharge Measurements", len(nasa_df))
+col2.metric("Initial Capacity", f"{nasa_initial_capacity:.4f} Ah")
+col3.metric("Final Capacity", f"{nasa_final_capacity:.4f} Ah")
+col4.metric("Final SOH", f"{nasa_final_soh:.2f}%")
 
 st.caption(
-    "NASA Battery B0005 measurements. SOH is calculated relative "
+    f"NASA {selected_battery} measured data. SOH is calculated relative "
     "to the first valid discharge capacity in this dataset."
 )
 
-st.subheader("NASA Measured Capacity")
+st.subheader(f"NASA {selected_battery} — Measured Capacity")
 
 st.line_chart(
     nasa_df,
@@ -275,7 +273,7 @@ st.line_chart(
     y_label="Measured Capacity (Ah)"
 )
 
-st.subheader("NASA Measured State of Health")
+st.subheader(f"NASA {selected_battery} — State of Health")
 
 st.line_chart(
     nasa_df,
@@ -287,17 +285,15 @@ st.line_chart(
 
 st.subheader("NASA Measurement Data")
 
-st.dataframe(
-    nasa_df.head(10),
-    use_container_width=True
-)
+st.dataframe(nasa_df.head(10), use_container_width=True)
 
 st.download_button(
-    "Download NASA Measured Data (CSV)",
+    f"Download {selected_battery} Data (CSV)",
     data=nasa_df.to_csv(index=False).encode("utf-8"),
-    file_name="NASA_B0005_capacity.csv",
+    file_name=f"NASA_{selected_battery}_capacity.csv",
     mime="text/csv"
 )
+
 
 # --------------------------------------------------
 # 6. NORMALIZED DEGRADATION-TREND COMPARISON
@@ -305,7 +301,7 @@ st.download_button(
 
 st.divider()
 st.header("Simulation vs NASA: Degradation Trend")
-
+st.caption(f"Selected experimental dataset: NASA {selected_battery}")
 st.write(
     "Compare the relative capacity-retention trends of the "
     "illustrative simulation and NASA B0005 measurements."
